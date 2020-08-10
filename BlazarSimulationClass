@@ -1,0 +1,133 @@
+#Populate 1D Universe with blazars using the following research paper for Luminosity Function Analysis:
+#https://iopscience.iop.org/article/10.1088/0004-637X/751/2/108/pdf
+#EQ.11, EQ.12, & EQ.13 on Page 3 in PDF
+
+class BlazarUniverse:
+    
+    def __init__(self): #what runs when the class is called
+        self.reset_parameters()
+        
+    def Schechter_PLE(self,L,z):
+        try:
+            value = L/self.e_PLE(z)
+            result = (A/(np.log(10)*value))*((value/self.L_star)**self.gamma1 + (value/self.L_star)**self.gamma2)**-1
+            return result
+        except:
+            print('Error in Schechter_PLE function')
+
+    def e_PLE(self,z):
+        try:
+            result = ((1. + z)**self.k_const) * np.exp(z/self.zeta)
+            return result
+        except:
+            print(z,' Produced an error in e_PLE(z) function')
+            
+    def reset_parameters(self):
+        #Variables
+        self.Ls = [] #the luminosity values for schechter function
+        self.zs = [] #the redshift values for schechter function
+        self.Ns = [] #Stores output of integrals of LF
+        self.Ns_container = [] #Stores the Ns of the integrals for every z value
+        self.acutualNs = [] #Stores population values in each luminosity bin after subtraction loop
+        self.actualNs_container = [] #Stores the acutalNs for every z value
+        self.probs = [] #Stores probabilities for a source at each luminosity
+        self.probs_container = [] #stores probability lists for every z value
+        self.rand_zs = [] #holds z values for the randomly generated sources
+        self.rand_Ls = [] #holds L values for the randomly generated sources
+        self.total_sources = 0 #sum of all sources
+        self.resolution = 1 #Number of points in the luminosity and redshift range
+        #PLE
+        self.gamma1 = .29
+        self.gamma2 = 1.25
+        self.A = 5.59*10**3
+        self.L_star = .026
+        self.zeta = -.46
+        self.k_const = 5.70
+        
+    def set_upper_error_parameters(self):
+        #PLE
+        self.gamma1 = .82
+        self.gamma2 = 1.57
+        self.A = 6*10**3
+        self.L_star = .092
+        self.zeta = -.45
+        self.k_const = 6.72
+        
+    def set_lower_error_parameters(self):
+        #PLE
+        self.gamma1 = -.24
+        self.gamma2 = .93
+        self.A = 5.18*10**3
+        self.L_star = -.04
+        self.zeta = -.47
+        self.k_const = 4.68
+        
+    def generate(self, n):
+        #Set up initial data
+        self.resolution = n
+        self.Ls = np.logspace(-3,2,self.resolution) #the luminosity values for schechter function
+        self.zs = np.linspace(0,10,self.resolution) #the redshift values for schechter function
+        
+        #Numerical integration loop
+        print('Simulation is running')
+
+        for k in range(len(self.zs)):
+            #reset Ns for next z value
+            self.Ns = []
+            
+            for i in range(len(self.Ls)):
+                
+                #Numerical Integral of Schechter, stores [0] because quad returns 2 values
+                self.Ns.append(quad(self.Schechter_PLE, self.Ls[i], np.inf, args=(self.zs[k],))[0])
+                
+            self.Ns_container.append(self.Ns)
+            
+        print('Numerical Integration Finished...')
+        
+        #_________________________________________
+        #Calculating actual number of galaxies through subtraction loop
+        
+        for k in range(len(self.zs)):
+            #reset acutalNs for next z value
+            self.actualNs = []
+            
+            for i in range(len(self.Ns_container[k])-1):
+                
+                #Subtract N(>L) value from next value to find sources in that luminosity range
+                self.actualNs.append(self.Ns_container[k][i] - self.Ns_container[k][i+1])
+                
+            self.actualNs_container.append(self.actualNs)
+        
+        print(colored('Subtraction Loop Finished..','blue'))
+        
+        #_________________________________________
+        #Calculating probabilities
+        
+        self.total_sources = np.sum(self.actualNs_container)
+        
+        for i in range(len(self.actualNs_container)):
+            
+            #reset probability for next z value
+            self.probs = []
+            
+            for j in range(len(self.actualNs_container[i])):
+                
+                #Divide number of sources at a luminosity by total sources to get probability
+                self.probs.append(self.actualNs_container[i][j] / self.total_sources)
+                
+            self.probs_container.append(self.probs)
+        
+        print('Probability Calculations Finished')
+        
+        #_________________________________________
+        #Populating Unvierse according to probabilities
+        
+        for k in range(1500):
+            for i in range(len(self.probs_container)):
+                for j in range(len(self.probs_container[i])):
+                    rand = random.random()
+                    if (rand <= self.probs_container[i][j]):
+                        self.rand_zs.append(self.zs[i])
+                        self.rand_Ls.append(self.Ls[j])
+                        
+        print(colored('Finished Populating Universe\n', 'green'))
